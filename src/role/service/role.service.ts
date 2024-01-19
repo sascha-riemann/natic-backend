@@ -1,42 +1,107 @@
 import { Injectable } from '@nestjs/common';
-import { Repository } from 'typeorm';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Equal, Repository } from 'typeorm';
 import { RoleEntity } from '../entity/role.entity';
-import { CreateRoleDto } from '../dto/create-role.dto';
+import { InjectRepository } from '@nestjs/typeorm';
 import { BusinessService } from '../../business/service/business.service';
-import { RoleOverviewDto } from '../dto/role-overview.dto';
+import { Role, RoleCreate, RoleUpdate } from '../dto/role.dto';
+import { BusinessPermissionsEntity } from '../entity/business-permissions.entity';
+import { ProjectPermissionEntity } from '../entity/project-permissions.entity';
+import { UsersService } from '../../users/service/users.service';
+import { use } from 'passport';
 
 @Injectable()
 export class RoleService {
   constructor(
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
-    private readonly organizationService: BusinessService,
+    private readonly businessService: BusinessService,
+    private readonly usersService: UsersService,
   ) {}
-  async createRole(createRoleDto: CreateRoleDto): Promise<number> {
-    const business = await this.organizationService.findById(
-      createRoleDto.businessId,
-    );
+
+  async createRole(dto: RoleCreate, businessId: number): Promise<number> {
+    const businessPermissions = new BusinessPermissionsEntity();
+    businessPermissions.createProjects = dto.businessPermissions.createProjects;
+
+    const projectPermissions = new ProjectPermissionEntity();
+    projectPermissions.updateInformation =
+      dto.projectPermissions.updateInformation;
 
     const role = new RoleEntity();
-    role.name = createRoleDto.name;
-    role.business = business;
-    return this.roleRepository.save(role).then((r) => r.id);
+    role.name = dto.name;
+    role.businessPermissions = businessPermissions;
+    role.projectPermissions = projectPermissions;
+    role.business = await this.businessService.findById(businessId);
+    void this.setRoleUser(role, dto, businessId);
+
+    const result = await this.roleRepository.save(role);
+    return result.id;
   }
 
-  async getRolesOverview(organizationId: number): Promise<RoleOverviewDto> {
-    const organization = await this.organizationService.findById(
-      organizationId,
+  async updateRole(
+    roleId: number,
+    dto: RoleUpdate,
+    businessId: number,
+  ): Promise<number> {
+    const role = await this.getRole(businessId, roleId);
+    role.name = dto.name;
+    role.businessPermissions.createProjects =
+      dto.businessPermissions.createProjects;
+    role.projectPermissions.updateInformation =
+      dto.projectPermissions.updateInformation;
+
+    void this.setRoleUser(role, dto, businessId);
+
+    const result = await this.roleRepository.save(role);
+    return result.id;
+  }
+
+  private async setRoleUser(
+    role: RoleEntity,
+    dto: RoleUpdate | RoleCreate,
+    businessId: number,
+  ) {
+    role.businessUserConfigs = await Promise.all(
+      (dto.userIds || []).map(async (userId) => {
+        const user = await this.usersService.getUser(userId, businessId);
+        return user.businessUserConfigs.find(
+          (c) => c.business.id === businessId,
+        );
+      }),
     );
-    return organization.roles?.map((role) => ({
-      id: role.id,
-      name: role.name,
-    }));
   }
 
-  deleteRole(roleId: number): void {
-    void this.roleRepository.delete({
-      id: roleId,
+  async getRoles(businessId: number): Promise<Role[]> {
+    if (!businessId) {
+      throw new Error('no business id for roles');
+    }
+    const roles = await this.roleRepository.findBy({
+      business: {
+        id: businessId,
+      },
+    });
+    return roles.map((role) => ({ id: role.id, name: role.name } as Role));
+  }
+
+  async getRole(businessId: number, roleId: number): Promise<RoleEntity> {
+    if (!businessId || !roleId) {
+      throw new Error('missing information');
+    }
+    return await this.roleRepository.findOne({
+      where: [
+        {
+          id: roleId,
+          business: {
+            id: businessId,
+          },
+        },
+      ],
+      relations: {
+        projectPermissions: true,
+        businessPermissions: true,
+        businessUserConfigs: {
+          user: true,
+        },
+      },
     });
   }
 }

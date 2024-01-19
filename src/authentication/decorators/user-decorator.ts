@@ -1,4 +1,5 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { User } from '../../users/entity/user.entity';
 
 export const AuthUser = createParamDecorator(
   (data: unknown, ctx: ExecutionContext) => {
@@ -7,7 +8,4 @@ export const AuthUser = createParamDecorator(
   },
 );
 
-export interface AuthenticatedUser {
-  userId: number;
-  username: number;
-}
+export type AuthenticatedUser = User;

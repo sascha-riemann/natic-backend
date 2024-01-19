@@ -1,14 +1,17 @@
 import {
   Column,
   Entity,
-  ManyToMany,
+  JoinColumn,
+  JoinTable,
   ManyToOne,
+  OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { BusinessEntity } from '../../business/entity/business.entity';
-import { User } from '../../users/entity/user.entity';
-import { ProjectPermission } from './project-permission.entity';
+import { Business } from '../../business/entity/business.entity';
+import { BusinessPermissionsEntity } from './business-permissions.entity';
+import { ProjectPermissionEntity } from './project-permissions.entity';
+import { BusinessUserConfig } from '../../business/entity/business-user-config.entity';
 
 @Entity()
 export class RoleEntity {
@@ -18,15 +21,24 @@ export class RoleEntity {
   @Column()
   name: string;
 
-  @ManyToMany(() => User)
-  user: User[];
+  @ManyToOne(() => Business)
+  business: Business;
 
-  @ManyToOne(() => BusinessEntity, (business) => business.roles)
-  business: BusinessEntity;
+  @OneToMany(() => BusinessUserConfig, (c) => c.role)
+  @JoinTable({ name: 'user_business_config_roles' })
+  businessUserConfigs: BusinessUserConfig[];
 
-  @OneToOne(() => ProjectPermission)
-  constructionPermission: ProjectPermission;
+  @OneToOne(() => BusinessPermissionsEntity, (p) => p.role, {
+    cascade: true,
+    nullable: true,
+  })
+  @JoinColumn()
+  businessPermissions: BusinessPermissionsEntity;
 
-  // @OneToOne(() => OrganizationPermission)
-  // organizationPermission: OrganizationPermission;
+  @OneToOne(() => ProjectPermissionEntity, (p) => p.role, {
+    cascade: true,
+    nullable: true,
+  })
+  @JoinColumn()
+  projectPermissions: ProjectPermissionEntity;
 }

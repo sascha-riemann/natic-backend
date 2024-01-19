@@ -5,14 +5,12 @@ import {
   ManyToMany,
   ManyToOne,
   OneToMany,
-  OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../../users/entity/user.entity';
-import { ProjectPermission } from '../../role/entity/project-permission.entity';
-import { Schedule } from './schedule.entity';
 import { Planning } from '../../planning/entity/planning.entity';
-import { BusinessEntity } from '../../business/entity/business.entity';
+import { Business } from '../../business/entity/business.entity';
+import { ProjectPermissionEntity } from '../../role/entity/project-permissions.entity';
 
 @Entity()
 export class Project {
@@ -29,20 +27,18 @@ export class Project {
   address: string;
 
   @ManyToMany(() => User)
-  @JoinTable()
+  @JoinTable({ name: 'project_users' })
   user: User[];
-
-  @OneToMany(() => Schedule, (schedule: Schedule) => schedule.project)
-  schedules: Schedule[];
-
-  @OneToOne(() => ProjectPermission)
-  permissions: ProjectPermission[];
 
   @OneToMany(() => Planning, (planning) => planning.project)
   planning: Planning[];
 
-  @ManyToOne(() => BusinessEntity)
-  business: BusinessEntity;
+  @ManyToOne(() => Business)
+  business: Business;
 
-  // TODO: Relation to Business
+  @Column()
+  created: Date;
+
+  @ManyToOne(() => ProjectPermissionEntity)
+  projectPermissions: ProjectPermissionEntity[];
 }

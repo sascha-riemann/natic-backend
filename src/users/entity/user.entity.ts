@@ -3,13 +3,13 @@ import {
   Entity,
   JoinTable,
   ManyToMany,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { BusinessEntity } from '../../business/entity/business.entity';
 import { Project } from '../../project/entity/project.entity';
-import { RoleEntity } from '../../role/entity/role.entity';
-import { OrganizationPermission } from '../../role/entity/organization-permission.entity';
-import { ProjectPermission } from '../../role/entity/project-permission.entity';
+import { BusinessUserConfig } from '../../business/entity/business-user-config.entity';
+import { Planning } from '../../planning/entity/planning.entity';
+import { ProjectTaskEntity } from '../../project-task/entities/project-task.entity';
 
 @Entity()
 export class User {
@@ -26,34 +26,29 @@ export class User {
   lastName: string;
 
   @Column({ nullable: true })
-  address: string;
-
-  @Column()
-  email: string;
-
-  @Column()
-  phone: string;
+  email?: string;
 
   @Column({ nullable: true })
   password: string;
 
-  @ManyToMany(() => BusinessEntity)
-  @JoinTable()
-  businesses: BusinessEntity[];
+  @OneToMany(() => BusinessUserConfig, (config) => config.user, {
+    cascade: true,
+  })
+  businessUserConfigs: BusinessUserConfig[];
 
-  @ManyToMany(() => Project)
-  @JoinTable()
-  constructionSites: Project[];
+  @ManyToMany(() => Project, { cascade: ['remove'] })
+  @JoinTable({ name: 'user_projects' })
+  projects: Project[];
 
-  @ManyToMany(() => RoleEntity)
-  @JoinTable()
-  roles: RoleEntity[];
+  @ManyToMany(() => Planning, { cascade: true })
+  @JoinTable({ name: 'planning_users' })
+  plannings: Planning[];
 
-  // @ManyToMany(() => ProjectPermission)
-  // @JoinTable()
-  // constructionPermissions: ProjectPermission[];
+  @OneToMany(() => ProjectTaskEntity, (projectTask) => projectTask.creator)
+  @JoinTable({ name: 'project_task_creator' })
+  createdProjectTasks: ProjectTaskEntity[];
 
-  // @ManyToMany(() => OrganizationPermission)
-  // @JoinTable()
-  // organizationPermissions: OrganizationPermission[];
+  @ManyToMany(() => ProjectTaskEntity)
+  @JoinTable({ name: 'project_task_assigned' })
+  assignedProjectTasks: ProjectTaskEntity[];
 }

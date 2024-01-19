@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { AuthenticationController } from './controller/authentication.controller';
 import { AuthenticationService } from './service/authentication.service';
 import { LocalStrategy } from './strategy/LocalStrategy';
-import { UsersModule } from '../users/users.module';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/service/users.service';
@@ -10,23 +9,26 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/entity/user.entity';
 import { jwtConstants } from './constants/jwtCostants';
 import { JwtStrategy } from './strategy/JwtStrategy';
+import { BusinessService } from '../business/service/business.service';
+import { Business } from '../business/entity/business.entity';
+import { BusinessUserConfig } from '../business/entity/business-user-config.entity';
 
 @Module({
   imports: [
-    UsersModule,
     PassportModule,
     JwtModule.register({
       secret: jwtConstants.secret,
     }),
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, Business, BusinessUserConfig]),
   ],
-  controllers: [AuthenticationController],
   providers: [
-    AuthenticationService,
+    UsersService,
+    BusinessService,
     LocalStrategy,
     JwtStrategy,
-    UsersService,
     JwtService,
+    AuthenticationService,
   ],
+  controllers: [AuthenticationController],
 })
 export class AuthenticationModule {}

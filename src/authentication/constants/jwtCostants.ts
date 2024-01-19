@@ -1,3 +1,5 @@
+import * as process from 'process';
+
 export const jwtConstants = {
-  secret: 'ABCDE_ASAFG_SDGSD',
+  secret: 'MEKB^9ggw$*rYFJX8a8iVAMo',
 };

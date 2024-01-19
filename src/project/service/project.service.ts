@@ -3,14 +3,9 @@ import { Repository } from 'typeorm';
 import { Project } from '../entity/project.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UsersService } from '../../users/service/users.service';
-import { Projects } from '../dto/projects.dto';
-import { ProjectOverview } from '../dto/project-overview';
-import { ProjectStaffOverviewDto } from '../dto/project-staff.dto';
-import { ProjectCreateDto } from '../dto/project-create.dto';
-import { ProjectScheduleDto } from '../dto/project-schedule.dto';
-import { Schedule } from '../entity/schedule.entity';
 import { BusinessService } from '../../business/service/business.service';
-import { use } from 'passport';
+import { UserDto } from '../../users/dto/user.dto';
+import { ProjectCreateDto, ProjectDTO } from '../dto/project.dto';
 
 @Injectable()
 export class ProjectService {
@@ -18,8 +13,6 @@ export class ProjectService {
     private readonly userService: UsersService,
     @InjectRepository(Project)
     private readonly projectRepository: Repository<Project>,
-    @InjectRepository(Schedule)
-    private readonly scheduleRepository: Repository<Schedule>,
     private readonly businessService: BusinessService,
   ) {}
 
@@ -28,8 +21,6 @@ export class ProjectService {
     dto: ProjectCreateDto,
     businessId: number,
   ): Promise<number> {
-    // TODO: Add default roles to organisation
-    // TODO: Add admin role to user that created org
     const user = await this.userService.findById(userId);
     const business = await this.businessService.findById(businessId);
 
@@ -38,6 +29,7 @@ export class ProjectService {
       .save({
         name: dto.name,
         address: dto.address,
+        created: new Date(),
         description: dto.description,
         user: [user],
         business,
@@ -46,7 +38,17 @@ export class ProjectService {
   }
 
   findById(id: number): Promise<Project> {
-    return this.projectRepository.findOne({ where: { id } });
+    if (!id) return undefined;
+    return this.projectRepository.findOne({
+      where: { id },
+      relations: {
+        user: {
+          businessUserConfigs: {
+            role: true,
+          },
+        },
+      },
+    });
   }
 
   async update(
@@ -54,40 +56,14 @@ export class ProjectService {
     dto: ProjectCreateDto,
     projectId: number,
   ): Promise<void> {
-    const project = await this.projectRepository.findOneBy({ id: projectId });
+    const project = await this.findById(projectId);
     project.name = dto.name;
     project.address = dto.address;
     project.description = dto.description;
     void this.projectRepository.save(project);
   }
 
-  async createSchedule(
-    userId: number,
-    dto: ProjectScheduleDto,
-    projectId: number,
-  ): Promise<void> {
-    const project = await this.projectRepository.findOneBy({ id: projectId });
-    const schedule = new Schedule();
-    schedule.name = dto.name;
-    schedule.description = dto.description;
-    schedule.start = dto.start;
-    schedule.end = dto.end;
-    schedule.project = project;
-    void this.scheduleRepository.save(schedule);
-  }
-
-  async getSchedules(projectId: number): Promise<Schedule[]> {
-    // TODO: In DTO verpacken
-    const project = await this.projectRepository.findOne({
-      where: {
-        id: projectId,
-      },
-      relations: ['schedules'],
-    });
-    return project.schedules;
-  }
-
-  async getList(userId: number, businessId): Promise<Projects> {
+  async getList(userId: number, businessId): Promise<ProjectDTO[]> {
     const projects = await this.projectRepository.find({
       where: {
         business: {
@@ -98,41 +74,52 @@ export class ProjectService {
         },
       },
     });
-    return projects.map((project: Project) => ({
+    return projects
+      .sort((a, b) => b.created.getTime() - a.created.getTime())
+      .map((project: Project) => ({
+        id: project.id,
+        name: project.name,
+        description: project.description,
+      })) as ProjectDTO[];
+  }
+
+  async getUsers(projectId: number): Promise<UserDto[]> {
+    const project = await this.findById(projectId);
+    return project?.user?.map((user) => {
+      const role = user.businessUserConfigs[0].role;
+      const workTimePerDay = user.businessUserConfigs[0].workTimePerDay;
+      return {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        workTimePerDay,
+        role: {
+          id: role.id,
+          name: role.name,
+          projectPermissions: role.projectPermissions,
+          businessPermissions: role.businessPermissions,
+        },
+      } as UserDto;
+    });
+  }
+
+  async setUsers(projectId: number, userIds: number[] = []): Promise<void> {
+    const project = await this.findById(projectId);
+    project.user = await Promise.all(
+      userIds.map((u) => this.userService.findById(u)),
+    );
+    await this.projectRepository.save(project);
+  }
+
+  async getOverview(projectId: number): Promise<ProjectDTO> {
+    const project = await this.findById(projectId);
+    return {
       id: project.id,
       name: project.name,
       description: project.description,
-    })) as Projects;
-  }
-
-  async getStaffOverview(
-    constructionSiteId: number,
-  ): Promise<ProjectStaffOverviewDto> {
-    const constructionSite = await this.getConstructionSite(constructionSiteId);
-    return {
-      user: constructionSite.user?.map((user) => ({
-        firstName: user.firstName,
-        lastName: user.lastName,
-        username: user.username,
-        role: 'ROLE',
-      })),
-    };
-  }
-
-  async getConstructionSite(id: number): Promise<Project> {
-    return await this.projectRepository.findOneBy({ id });
-  }
-
-  async getOverview(
-    userId: number,
-    constructionSiteId: number,
-  ): Promise<ProjectOverview> {
-    const constructionSite = await this.getConstructionSite(constructionSiteId);
-    return {
-      id: constructionSite.id,
-      name: constructionSite.name,
-      description: constructionSite.description,
-      address: constructionSite.address,
-    } as ProjectOverview;
+      address: project.address,
+    } as ProjectDTO;
   }
 }

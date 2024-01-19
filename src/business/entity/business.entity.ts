@@ -1,17 +1,16 @@
 import {
   Column,
   Entity,
-  JoinTable,
   ManyToMany,
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { RoleEntity } from '../../role/entity/role.entity';
-import { User } from '../../users/entity/user.entity';
 import { Project } from '../../project/entity/project.entity';
+import { ResourceCategory } from '../../resources/ressources/resource.category';
+import { BusinessUserConfig } from './business-user-config.entity';
 
 @Entity()
-export class BusinessEntity {
+export class Business {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -24,14 +23,14 @@ export class BusinessEntity {
   @Column()
   address: string;
 
-  @OneToMany(() => RoleEntity, (role) => role.business)
-  roles: RoleEntity[];
+  @OneToMany(() => BusinessUserConfig, (config) => config.business, {
+    cascade: true,
+  })
+  businessUserConfigs: BusinessUserConfig[];
 
-  @ManyToMany(() => User)
-  @JoinTable()
-  user: User[];
-
-  @ManyToMany(() => User)
-  @JoinTable()
+  @ManyToMany(() => Project)
   projects: Project[];
+
+  @OneToMany(() => ResourceCategory, (resource) => resource.business)
+  resourceCategories: ResourceCategory[];
 }

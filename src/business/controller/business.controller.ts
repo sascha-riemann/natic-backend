@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { BusinessService } from '../service/business.service';
 import { BusinessCreateDto } from '../dto/business-create.dto';
 import { JwtAuthGuard } from '../../authentication/guard/JwtAuthGuard';
@@ -7,8 +7,8 @@ import {
   AuthUser,
 } from '../../authentication/decorators/user-decorator';
 import { BusinessSelectDto } from '../dto/business-select.dto';
-import { User } from '../../users/entity/user.entity';
-import { BusinessCreateStaffDTO } from '../dto/business-create-staff.dto';
+import { BusinessId } from '../decorator/business.decorator';
+import { ResourcesDTO } from '../dto/business-resources-overview.dto';
 
 @Controller('business')
 export class BusinessController {
@@ -16,49 +16,29 @@ export class BusinessController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  getOrganisations(
+  getUserBusinesses(
     @AuthUser() user: AuthenticatedUser,
   ): Promise<BusinessSelectDto[]> {
-    return this.businessService.getUserBusinesses(user.userId);
+    return this.businessService.getUserBusinesses(user.id);
   }
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  createBusiness(
+  async createBusiness(
     @AuthUser() user: AuthenticatedUser,
     @Body() dto: BusinessCreateDto,
   ): Promise<number> {
-    return this.businessService.createBusiness(user.userId, dto);
+    const business = await this.businessService.createBusiness(user.id, dto);
+    return business.id;
   }
 
-  // @Post('user/add')
-  // @UseGuards(JwtAuthGuard)
-  // // TODO: Guard isAdmin
-  // addUser(@Body() dto: BusinessAddUserDto): Promise<void> {
-  //   return this.businessService.addUser(dto);
-  // }
-
-  @Get(':businessId/staff')
+  @Get('resources')
   @UseGuards(JwtAuthGuard)
   // TODO: Guard isAdmin
-  getBusinessStaff(
+  getBusinessResources(
     @AuthUser() user: AuthenticatedUser,
-    @Param('businessId') businessId: number,
-  ): Promise<User[]> {
-    return this.businessService.getBusinessUser(businessId);
-  }
-
-  @Post(':businessId/staff')
-  @UseGuards(JwtAuthGuard)
-  // TODO: Guard isAdmin
-  addBusinessStaff(
-    @AuthUser() user: AuthenticatedUser,
-    @Param('businessId') businessId: number,
-    @Body() businessCreateStaffDTO: BusinessCreateStaffDTO,
-  ): Promise<void> {
-    return this.businessService.createBusinessStaff(
-      businessCreateStaffDTO,
-      businessId,
-    );
+    @BusinessId() businessId: number,
+  ): Promise<ResourcesDTO[]> {
+    return this.businessService.getBusinessResources(businessId);
   }
 }

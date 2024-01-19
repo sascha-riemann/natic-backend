@@ -1,0 +1,10 @@
+export enum TimesheetEntryCategory {
+  WORK = 'WORK',
+  BREAK = 'BREAK',
+  VACATION = 'URLAUB',
+  ILLNESS = 'ILLNESS',
+  TRAVEL = 'TRAVEL',
+  TRAINING_EDUCATION = 'TRAINING_EDUCATION',
+  HOLIDAYS = 'HOLIDAYS',
+  OTHER = 'OTHER',
+}

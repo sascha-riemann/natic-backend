@@ -1,46 +1,42 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { UsersService } from '../../users/service/users.service';
-import { BusinessEntity } from '../entity/business.entity';
+import { Business } from '../entity/business.entity';
 import { BusinessCreateDto } from '../dto/business-create.dto';
 import { BusinessSelectDto } from '../dto/business-select.dto';
+import { ResourceCategoryDTO } from '../../resources/dto/resource-category.dto';
+import { ResourcesDTO } from '../dto/business-resources-overview.dto';
+import { BusinessUserConfig } from '../entity/business-user-config.entity';
 import { User } from '../../users/entity/user.entity';
-import { BusinessCreateStaffDTO } from '../dto/business-create-staff.dto';
 
 @Injectable()
 export class BusinessService {
   constructor(
-    @InjectRepository(BusinessEntity)
-    private readonly businessRepository: Repository<BusinessEntity>,
-    private readonly userService: UsersService,
+    @InjectRepository(Business)
+    private readonly businessRepository: Repository<Business>,
     @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly usersRepository: Repository<User>,
   ) {}
 
-  // async addUser(dto: BusinessAddUserDto): Promise<void> {
-  //   const user = await this.userService.findByEmail(dto.userEmail);
-  //   const organization = await this.findById(dto.organizationId);
-  //   if (!organization.user) {
-  //     organization.user = [];
-  //   }
-  //   organization.user.push(user);
-  //   void this.businessRepository.save(user);
-  // }
-
-  async findById(id: number): Promise<BusinessEntity> {
+  async findById(id: number): Promise<Business> {
     return this.businessRepository.findOne({
-      where: {
-        id,
-      },
-      relations: ['roles', 'user'],
+      where: { id },
+      relations: [
+        'businessUserConfigs',
+        'businessUserConfigs.user',
+        'resourceCategories',
+        'resourceCategories.resources',
+      ],
     });
   }
 
   async getUserBusinesses(userId: number): Promise<BusinessSelectDto[]> {
-    const user = await this.userService.findById(userId);
     const businesses = await this.businessRepository.findBy({
-      user,
+      businessUserConfigs: {
+        user: {
+          id: userId,
+        },
+      },
     });
     return businesses.map((o) => ({
       id: o.id,
@@ -50,60 +46,52 @@ export class BusinessService {
     }));
   }
 
-  async getBusinessUser(businessUser: number): Promise<User[]> {
-    const organization = await this.businessRepository.findOne({
-      where: {
-        id: businessUser,
-      },
-      relations: ['user'],
-    });
-    return organization.user;
-  }
-
-  async createBusinessStaff(
-    staffDTO: BusinessCreateStaffDTO,
-    businessId: number,
-  ): Promise<void> {
-    let user = await this.userService.findByUsername(staffDTO.username);
-    if (user) {
-      throw new ConflictException('username');
-    }
-    user = await this.userService.findByEmail(staffDTO.email);
-    if (user) {
-      throw new ConflictException('email');
-    }
-
-    const business = await this.findById(businessId);
-
-    user = new User();
-    user.username = staffDTO.username;
-    user.firstName = staffDTO.firstName;
-    user.lastName = staffDTO.lastName;
-    user.address = staffDTO.address;
-    user.email = staffDTO.email;
-    user.phone = staffDTO.phone;
-    user = await this.userRepository.save(user);
-
-    business.user.push(user);
-    await this.businessRepository.save(business);
-  }
-
   async createBusiness(
     userId: number,
     dto: BusinessCreateDto,
-  ): Promise<number> {
-    // TODO: Add default roles to organisation
-    // TODO: Add admin role to user that created org
-    const user = await this.userService.findById(userId);
+  ): Promise<Business> {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+
+    const business = new Business();
+    business.name = dto.name;
+    business.address = dto.address;
+    business.description = dto.description;
+
+    const businessUserConfig = new BusinessUserConfig();
+    businessUserConfig.user = user;
+
+    business.businessUserConfigs = [businessUserConfig];
 
     // TODO: Check if already exists
-    return this.businessRepository
-      .save({
-        name: dto.name,
-        address: dto.address,
-        description: dto.description,
-        user: [user],
-      })
-      .then((r) => r.id);
+    return this.businessRepository.save(business);
+  }
+
+  async getBusinessResourceCategories(
+    businessId: number,
+  ): Promise<ResourceCategoryDTO[]> {
+    const business = await this.findById(businessId);
+    return business?.resourceCategories?.map((resource) => ({
+      id: resource.id,
+      name: resource.name,
+    }));
+  }
+
+  async getBusinessResources(businessId: number): Promise<ResourcesDTO[]> {
+    const business = await this.findById(businessId);
+
+    return business?.resourceCategories?.map((category) => ({
+      category,
+      resources: category.resources?.map((resource) => ({
+        id: resource.id,
+        name: resource.name,
+        identification: resource.identification,
+        category: {
+          id: category.id,
+          name: category.name,
+        },
+      })),
+    }));
   }
 }
